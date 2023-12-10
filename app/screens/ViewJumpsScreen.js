@@ -8,6 +8,14 @@ import {
   Alert,
 } from "react-native";
 import styles from "../shred/stylesheet";
+import {
+  initDB,
+  fetchJumps,
+  addJump,
+  updateJump,
+  deleteJump,
+  initializeJumps,
+} from "../utils/db";
 
 let JUMPS = [
   {
@@ -54,6 +62,13 @@ export default class ViewJumpsScreen extends React.Component {
 
   //if this screen is focused, the jumps are loaded on the screen
   componentDidMount() {
+    initDB();
+    initializeJumps()
+      .then((jumps) => {
+        JUMPS = jumps;
+        this.setState({ data: JUMPS });
+      })
+      .catch((error) => console.log("Error initializing jumps: ", error));
     this._unsubscribe = this.props.navigation.addListener("focus", () => {
       this.loadJumps();
     });
@@ -74,6 +89,7 @@ export default class ViewJumpsScreen extends React.Component {
 
   removeJump(id) {
     JUMPS = JUMPS.filter((item) => item.id !== id);
+    deleteJump(id, () => console.log("Jump deleted from database"));
     this.setState({ refreshing: true });
     this.setState({ data: JUMPS });
     this.setState({ refreshing: false });
@@ -104,29 +120,8 @@ export default class ViewJumpsScreen extends React.Component {
     } else {
       if (this.props.route.params.updating) {
         this.setState({ refreshing: true });
-        JUMPS = JUMPS.map((obj) => {
-          if (obj.id === this.props.route.params.id) {
-            return {
-              id: this.props.route.params.id,
-              title: this.props.route.params.title,
-              canopy: this.props.route.params.canopy,
-              plane: this.props.route.params.plane,
-              dropzone: this.props.route.params.dropzone,
-              datetime: this.props.route.params.datetime,
-              altitude: this.props.route.params.altitude,
-              description: this.props.route.params.description,
-            };
-          } else {
-            return obj;
-          }
-        });
-        this.setState({ data: JUMPS });
-        this.setState({ refreshing: false });
-        this.props.route.params.updating = false;
-      } else if (this.props.route.params.adding) {
-        this.setState({ refreshing: true });
-        JUMPS.push({
-          id: nextId,
+        const updatedJump = {
+          id: this.props.route.params.id,
           title: this.props.route.params.title,
           canopy: this.props.route.params.canopy,
           plane: this.props.route.params.plane,
@@ -134,7 +129,42 @@ export default class ViewJumpsScreen extends React.Component {
           datetime: this.props.route.params.datetime,
           altitude: this.props.route.params.altitude,
           description: this.props.route.params.description,
-        });
+        };
+
+        // Update the local JUMPS array
+        JUMPS = JUMPS.map((obj) =>
+          obj.id === updatedJump.id ? updatedJump : obj
+        );
+        this.setState({ data: JUMPS, refreshing: false });
+
+        // Update the database
+        updateJump(updatedJump.id, updatedJump, () =>
+          console.log("Jump updated in database")
+        );
+
+        this.setState({ data: JUMPS });
+        this.setState({ refreshing: false });
+        this.props.route.params.updating = false;
+      } else if (this.props.route.params.adding) {
+        this.setState({ refreshing: true });
+        const newJump = {
+          id: nextId, // Ensure this ID is unique
+          title: this.props.route.params.title,
+          canopy: this.props.route.params.canopy,
+          plane: this.props.route.params.plane,
+          dropzone: this.props.route.params.dropzone,
+          datetime: this.props.route.params.datetime,
+          altitude: this.props.route.params.altitude,
+          description: this.props.route.params.description,
+        };
+
+        // Add to the local JUMPS array
+        JUMPS.push(newJump);
+        this.setState({ data: JUMPS, refreshing: false });
+
+        // Add to the database
+        addJump(newJump, () => console.log("Jump added to database"));
+
         nextId++;
         this.setState({ data: JUMPS });
         this.setState({ refreshing: false });
